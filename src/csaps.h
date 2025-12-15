@@ -3,6 +3,8 @@
 #define CSAPS_H
 
 #include <limits>
+#include <memory>
+#include <vector>
 
 #include <Eigen/Core>
 #include <Eigen/SparseCore>
@@ -38,6 +40,10 @@ DoubleSparseMatrix MakeSparseDiagMatrix(const DoubleArray2D& diags, const IndexA
 DoubleArray SolveLinearSystem(const DoubleSparseMatrix &A, const DoubleArray &b);
 
 
+//! Normalizes smoothing parameter based on data characteristics
+double NormalizeSmooth(const DoubleArray &x, const DoubleArray &w, double smooth);
+
+
 class UnivariateCubicSmoothingSpline
 {
 public:
@@ -46,8 +52,13 @@ public:
   UnivariateCubicSmoothingSpline(const DoubleArray &xdata, const DoubleArray &ydata, double smooth);
   UnivariateCubicSmoothingSpline(const DoubleArray &xdata, const DoubleArray &ydata, const DoubleArray &weights, double smooth);
 
-  DoubleArray operator()(const DoubleArray &xidata);
-  DoubleArray operator()(const Size pcount, DoubleArray &xidata);
+  // New: with normalizedsmooth support
+  UnivariateCubicSmoothingSpline(const DoubleArray &xdata, const DoubleArray &ydata, double smooth, bool normalizedsmooth);
+  UnivariateCubicSmoothingSpline(const DoubleArray &xdata, const DoubleArray &ydata, const DoubleArray &weights, double smooth, bool normalizedsmooth);
+
+  // Evaluate: nu for derivative order, extrapolate for boundary handling
+  DoubleArray operator()(const DoubleArray &xidata, int nu = 0, bool extrapolate = true);
+  DoubleArray operator()(const Size pcount, DoubleArray &xidata, int nu = 0, bool extrapolate = true);
 
   double GetSmooth() const { return m_smooth; }
   const DoubleArray& GetBreaks() const { return m_xdata; }
@@ -55,8 +66,8 @@ public:
   Index GetPieces() const { return m_coeffs.rows(); }
 
 protected:
-  void MakeSpline();
-  DoubleArray Evaluate(const DoubleArray &xidata);
+  void MakeSpline(bool normalizedsmooth = false);
+  DoubleArray Evaluate(const DoubleArray &xidata, int nu = 0, bool extrapolate = true);
 
 protected:
   DoubleArray m_xdata;
@@ -66,6 +77,46 @@ protected:
   double m_smooth;
 
   DoubleArray2D m_coeffs;
+};
+
+class MultivariateCubicSmoothingSpline
+{
+public:
+  // ydata: rows == xdata.size(), cols == n_dims
+  MultivariateCubicSmoothingSpline(const DoubleArray &xdata, const DoubleArray2D &ydata);
+  MultivariateCubicSmoothingSpline(const DoubleArray &xdata, const DoubleArray2D &ydata, const DoubleArray &weights);
+  // smooth: if < 0 -> auto per-dim, otherwise shared across dims
+  MultivariateCubicSmoothingSpline(const DoubleArray &xdata, const DoubleArray2D &ydata, double smooth);
+  MultivariateCubicSmoothingSpline(const DoubleArray &xdata, const DoubleArray2D &ydata, const DoubleArray &weights, double smooth);
+
+  // New: with normalizedsmooth support
+  MultivariateCubicSmoothingSpline(const DoubleArray &xdata, const DoubleArray2D &ydata, double smooth, bool normalizedsmooth);
+  MultivariateCubicSmoothingSpline(const DoubleArray &xdata, const DoubleArray2D &ydata, const DoubleArray &weights, double smooth, bool normalizedsmooth);
+
+  // Evaluate at points xidata (1D) -> returns matrix with rows == xidata.size(), cols == n_dims
+  // nu for derivative order, extrapolate for boundary handling
+  DoubleArray2D operator()(const DoubleArray &xidata, int nu = 0, bool extrapolate = true);
+
+  // Query per-dimension smoothing factors
+  DoubleArray GetSmooths() const;
+
+  // Get breaks (shared xdata)
+  const DoubleArray& GetBreaks() const { return m_xdata; }
+  Index GetDims() const { return m_dims; }
+
+protected:
+  void MakeSplines(bool normalizedsmooth = false);
+
+protected:
+  DoubleArray m_xdata;
+  DoubleArray2D m_ydata;      // shape: (n_points, n_dims)
+  DoubleArray m_weights;      // optional, length == n_points
+  double m_smooth;            // if <0 -> auto per-dim
+  Index m_dims;
+
+  // splines, one per output dimension
+  std::vector<std::unique_ptr<UnivariateCubicSmoothingSpline>> m_splines;
+  DoubleArray m_smooths;      // per-dim smoothing values after MakeSplines
 };
 
 } // namespace csaps
