@@ -6,11 +6,22 @@ set(_SOURCES
 )
 
 add_library(${_LIB_NAME} STATIC ${_SOURCES})
-target_include_directories(${_LIB_NAME} PUBLIC ${EIGEN3_INCLUDE_DIR})
+target_include_directories(${_LIB_NAME} PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<INSTALL_INTERFACE:include/csaps>
+  ${EIGEN3_INCLUDE_DIR}
+)
 target_compile_features(${_LIB_NAME} PUBLIC cxx_std_11)
-install(TARGETS csaps EXPORT csaps::csaps
-    DESTINATION lib)
+
+# 创建别名
+add_library(csaps::csaps ALIAS csaps)
+
+install(TARGETS csaps
+  EXPORT csapsTargets
+  DESTINATION lib
+)
 
 install(FILES
     csaps.h
-    DESTINATION include/csaps)
+    DESTINATION include/csaps
+)
