@@ -1,5 +1,9 @@
 #include "csaps.h"
 
+// GCC/glibc newer toolchains may treat SIGSTKSZ as non-constant in Catch2 v2
+// signal handler code. Disable POSIX signal handling in tests to keep build
+// portable across environments.
+#define CATCH_CONFIG_NO_POSIX_SIGNALS
 #define CATCH_CONFIG_MAIN
 #include "catch.hpp"
 
